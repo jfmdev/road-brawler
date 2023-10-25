@@ -1,12 +1,6 @@
 # Road Brawler
 
-A very simple racing game inspired by the classic _Road Fighter_.
-
-TODO: 
-- Debería adaptarse al tamaño de la pantalla
-- En el centro iría la carretera y a los costados unos tiles de vegetación y nubes
-- Tendría tres dificultades: facil donde solo hay dos carriles y el auto se mueve de izquierda a derecha con un solo touch; medio con tres carriles y dificil con cinco donde se mueve de izquiera o derecha según donde se toque la pantalla.
-- La velocidad de los autos y la frecuencia con la que aparecen va aumentado hasta volverse fija.
+A simple racing game inspired by the classic _Road Fighter_ game.
 
 ## Getting Started
 
