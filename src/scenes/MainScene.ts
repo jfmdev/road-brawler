@@ -2,13 +2,15 @@
 // TODO: Define constants for minimum and maximum speeds for the cars.
 const BASE_SPEED = 18;
 const FLOOR_SIZE = 16;
+const CAR_SIZE = 32;
 
 export default class HelloScene extends Phaser.Scene {
   private floor: Phaser.GameObjects.Group | null = null;
+  private player: Phaser.Physics.Arcade.Sprite | null = null
   private speed: number = BASE_SPEED;
 
   constructor() {
-    super('hello');
+    super();
   }
   
   preload() {
@@ -20,6 +22,7 @@ export default class HelloScene extends Phaser.Scene {
     this.load.image('red', 'https://labs.phaser.io/assets/particles/red.png');
 
     // TODO: Load cars (player and enemies).
+    this.load.spritesheet('truck', 'assets/sprites/truck-blue.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
 
     // Load floors.
     this.load.image('grass', 'assets/images/grass.jpg');
@@ -44,9 +47,21 @@ export default class HelloScene extends Phaser.Scene {
     this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width*3/4), 0, Math.floor(this.game.canvas.width/4), this.game.canvas.height, 'soil').setOrigin(0, 0));
     this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width*3/4) - FLOOR_SIZE, 0, FLOOR_SIZE, this.game.canvas.height, 'grass-soil-right').setOrigin(0, 0));
 
-    this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2), 0, FLOOR_SIZE, this.game.canvas.height, 'road-center').setOrigin(0, 0));
-    this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2)+FLOOR_SIZE, 0, FLOOR_SIZE, this.game.canvas.height, 'road-right').setOrigin(0, 0));
-    this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2)-FLOOR_SIZE, 0, FLOOR_SIZE, this.game.canvas.height, 'road-left').setOrigin(0, 0));
+    // TODO: The position of the road should be stored on some variable, so later we can use it to place the cars.
+    this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2), 0, FLOOR_SIZE, this.game.canvas.height, 'road-center').setOrigin(0.5, 0));
+    this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2) + FLOOR_SIZE, 0, FLOOR_SIZE, this.game.canvas.height, 'road-right').setOrigin(0.5, 0));
+    this.floor.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2) - FLOOR_SIZE, 0, FLOOR_SIZE, this.game.canvas.height, 'road-left').setOrigin(0.5, 0));
+  
+    this.player = this.physics.add.sprite(this.game.canvas.width / 2, this.game.canvas.height - CAR_SIZE, 'truck');
+    this.player.anims.create({ key: 'rotate', frames: this.anims.generateFrameNumbers('truck', { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
+    // this.player.anims.play('rotate');
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
+    playerBody.setAllowGravity(false);
+
+    const test1 = this.physics.add.sprite(this.game.canvas.width / 2 - 0.75*FLOOR_SIZE, this.game.canvas.height/2 - CAR_SIZE, 'truck');
+    const test2 = this.physics.add.sprite(this.game.canvas.width / 2 + 0.75*FLOOR_SIZE, this.game.canvas.height/2 + CAR_SIZE, 'truck').setOrigin(0.5);
+    (test1.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    (test2.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
   
     const particles = this.add.particles(0, 0, 'red', {
       speed: 100,
