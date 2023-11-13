@@ -14,15 +14,11 @@ export default class HelloScene extends Phaser.Scene {
   }
   
   preload() {
-    // Load static from our public dir.
-    this.load.image('vite-phaser-logo', 'assets/images/vite-phaser.png');
-  
-    // Load static assets from url.
-    this.load.image('sky', 'https://labs.phaser.io/assets/skies/space3.png');
-    this.load.image('red', 'https://labs.phaser.io/assets/particles/red.png');
-
-    // TODO: Load cars (player and enemies).
+    // Load cars (player and NPC).
     this.load.spritesheet('truck', 'assets/sprites/truck-blue.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
+    this.load.spritesheet('car-red', 'assets/sprites/car-red.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
+    this.load.spritesheet('car-orange', 'assets/sprites/car-orange.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
+    this.load.spritesheet('car-yellow', 'assets/sprites/car-yellow.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
 
     // Load floors.
     this.load.image('grass', 'assets/images/grass.jpg');
@@ -58,24 +54,12 @@ export default class HelloScene extends Phaser.Scene {
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
     playerBody.setAllowGravity(false);
 
-    const test1 = this.physics.add.sprite(this.game.canvas.width / 2 - 0.75*FLOOR_SIZE, this.game.canvas.height/2 - CAR_SIZE, 'truck');
-    const test2 = this.physics.add.sprite(this.game.canvas.width / 2 + 0.75*FLOOR_SIZE, this.game.canvas.height/2 + CAR_SIZE, 'truck').setOrigin(0.5);
+    const test1 = this.physics.add.sprite(this.game.canvas.width / 2 - 0.75*FLOOR_SIZE, this.game.canvas.height/2 - CAR_SIZE, 'car-red');
+    const test2 = this.physics.add.sprite(this.game.canvas.width / 2 + 0.75*FLOOR_SIZE, this.game.canvas.height/2 + CAR_SIZE, 'car-orange');
+    test1.setFrame(7);
+    test2.setFrame(7);
     (test1.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     (test2.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
-  
-    const particles = this.add.particles(0, 0, 'red', {
-      speed: 100,
-      scale: { start: 1, end: 0 },
-      blendMode: 'ADD'
-    });
-  
-    // TODO: Replace logo by a car.
-    const logo = this.physics.add.image(400, 100, 'vite-phaser-logo');
-    logo.setVelocity(100, 200);
-    logo.setBounce(1, 1);
-    logo.setCollideWorldBounds(true)
-  
-    particles.startFollow(logo);
 
     // TODO: Should support different difficulty levels according to the number of lanes (2, 3 or 5).
   }
