@@ -1,8 +1,16 @@
+import { borderRandomBooleanFactory, pickRandomItem } from "../misc/util";
 
-// Speeds and rates.
-const CAR_BASE_SPEED = 54; // pixels per second.
-const CARS_TIMER = 1250; // milliseconds.
-const TRUCK_BASE_SPEED = 18; // pixels per second.
+// Speeds (pixels per second) and rates (milliseconds).
+const CAR_MIN_SPEED = 54;
+const CAR_MAX_SPEED = CAR_MIN_SPEED * 4;
+const CAR_MIN_RATE = 1500;
+const CAR_MAX_RATE = CAR_MIN_RATE / 3;
+const TRUCK_MIN_SPEED = 18;
+const TRUCK_MAX_SPEED = TRUCK_MIN_SPEED * 4;
+
+// Difficulty thresholds.
+const DIFFICULTY_MIN_SCORE = 5;
+const DIFFICULTY_MAX_SCORE = 50;
 
 // Sprites sizes.
 const FLOOR_SIZE = 16;
@@ -17,10 +25,9 @@ enum GameStatus {
   GAME_OVER
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pickRandom = (array: any[]) => array[Math.floor(Math.random() * array.length)];
+const randomLane = borderRandomBooleanFactory();
 
-export default class HelloScene extends Phaser.Scene {
+export default class MainScene extends Phaser.Scene {
   private gameStatus: GameStatus = GameStatus.MAIN_MENU;
 
   private cars: Phaser.Physics.Arcade.Group | null = null;
@@ -30,8 +37,10 @@ export default class HelloScene extends Phaser.Scene {
   private addCarTimer: Phaser.Time.TimerEvent | null = null;
   private score = 0;
 
-  private carsSpeed: number = CAR_BASE_SPEED;
-  private truckSpeed: number = TRUCK_BASE_SPEED;
+  private carsRate: number = CAR_MIN_RATE;
+  private carsSpeed: number = CAR_MIN_SPEED;
+  private truckSpeed: number = TRUCK_MIN_SPEED;
+
   private leftLane = 0;
   private rightLane = 0;
 
@@ -146,9 +155,7 @@ export default class HelloScene extends Phaser.Scene {
           this.cars?.remove(car, true, true);
 
           // Increase score.
-          // TODO: Increase difficulty progressively.
-          this.score++;
-          this.scoreLabel?.setText(`Score: ${this.score}`);
+          this.updateScore(this.score + 1);
         }
       });
     }
@@ -183,15 +190,9 @@ export default class HelloScene extends Phaser.Scene {
 
     this.mainMessage?.setVisible(false);
     this.scoreLabel?.setVisible(true);
-    this.scoreLabel?.setText(`Score: ${this.score}`);
 
-    // Initialize timer to add cars.
-    this.addCarTimer = this.time.addEvent({
-      delay: CARS_TIMER,
-      callback: this.addCar,
-      callbackScope: this,
-      loop: true
-    });
+    this.updateScore(0);
+    this.setAddCarTimer();
   }
 
   endGame(player: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile, car: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile) {
@@ -214,9 +215,13 @@ export default class HelloScene extends Phaser.Scene {
   // --- Miscellaneous --- //
 
   addCar() {
-    const sprite = pickRandom(['car-red', 'car-orange', 'car-yellow'])
+    // Randomly choose a sprint and a lane.
+    const sprite = pickRandomItem(['car-red', 'car-orange', 'car-yellow']);
+    const useLeft = randomLane();
+    
+    // Instantiate car.
     const car = this.cars?.create(
-      pickRandom([this.leftLane, this.rightLane]),
+      useLeft ? this.leftLane : this.rightLane,
       -CAR_SIZE/2,
       sprite
     ) as Phaser.GameObjects.Sprite;
@@ -228,7 +233,18 @@ export default class HelloScene extends Phaser.Scene {
     carBody.setVelocityY(this.carsSpeed);
     carBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
 
+    // Restart timer.
+    this.setAddCarTimer();
+
     return carBody;
+  }
+
+  setAddCarTimer() {
+    this.addCarTimer = this.time.addEvent({
+      delay: this.carsRate,
+      callback: this.addCar,
+      callbackScope: this
+    });
   }
 
   onTap() {
@@ -238,13 +254,40 @@ export default class HelloScene extends Phaser.Scene {
 
     if(this.gameStatus === GameStatus.PLAYING) {
       if(this.player?.body?.velocity.x === 0) {
+        // If not moving (on the X axis) then switch lane.
         const isLeft = this.player.x < this.game.canvas.width/2;
         this.player.setVelocityX((isLeft ? 1 : -1) * this.truckSpeed * 4);
+      } else {
+        // If already moving then invert direction.
+        this.player?.setVelocityX(-(this.player?.body?.velocity.x || 0));
       }
     }
 
     if(this.gameStatus === GameStatus.GAME_OVER) {
       this.showMainMenu();
+    }
+  }
+
+  updateScore(newScore: number) {
+    this.score = newScore;
+    this.scoreLabel?.setText(`Score: ${this.score}`);
+
+    if(this.score < DIFFICULTY_MIN_SCORE) {
+      // Minimum difficulty.
+      this.carsRate = CAR_MIN_RATE;
+      this.carsSpeed = CAR_MIN_SPEED;
+      this.truckSpeed = TRUCK_MIN_SPEED;
+    } else if(this.score < DIFFICULTY_MAX_SCORE) {
+      // Medium difficulty.
+      const alpha = (this.score - DIFFICULTY_MIN_SCORE) / (DIFFICULTY_MAX_SCORE - DIFFICULTY_MIN_SCORE);
+      this.carsRate = (CAR_MAX_RATE - CAR_MIN_RATE) * alpha + CAR_MIN_RATE;
+      this.carsSpeed = (CAR_MAX_SPEED - CAR_MIN_SPEED) * alpha + CAR_MIN_SPEED;
+      this.truckSpeed = (TRUCK_MAX_SPEED - TRUCK_MIN_SPEED) * alpha + TRUCK_MIN_SPEED;
+    } else {
+      // Maximum difficulty.
+      this.carsRate = CAR_MAX_RATE;
+      this.carsSpeed = CAR_MAX_SPEED;
+      this.truckSpeed = TRUCK_MAX_SPEED;
     }
   }
 }
