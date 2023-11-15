@@ -1,9 +1,9 @@
 import Phaser from "phaser";
 import MainScene from "./scenes/MainScene";
 
-// TODO: Should define a maximum size to prevent cars from being to small.
-const height = window.innerHeight > 640 ? 640 : window.innerHeight;
-const width = window.innerHeight > 640 ? Math.floor(window.innerWidth * 640 / window.innerHeight) : window.innerWidth;
+const MAX_HEIGHT = 320;
+const height = window.innerHeight > MAX_HEIGHT ? MAX_HEIGHT : window.innerHeight;
+const width = window.innerHeight > MAX_HEIGHT ? Math.floor(window.innerWidth * MAX_HEIGHT / window.innerHeight) : window.innerWidth;
 
 const config: Phaser.Types.Core.GameConfig = {
   parent: "app",
