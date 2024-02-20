@@ -1,9 +1,8 @@
 import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
 
 // TODO Roadmap
-// * New vegetation items should have a lower z-index than previous vegetation items, to avoid overlapping them and than labels.
 // * Vegetation should spawn from start, instead of waiting for game to start.
-// * Add Title (above the 'Tap to start' label).
+// * Score should increase after the car is "passed", instead of when the car is removed from screen.
 // * Add a sound when changing lane.
 // * Add sound for car crashes.
 // * Add sound when pressing play.
@@ -15,7 +14,6 @@ import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../m
 // * Allow to choose between 2 and 3 lanes.
 
 // Speeds (pixels per second) and rates (milliseconds).
-// TODO: Speeds and rates should be a function of a single general speed variable.
 const BASE_CAR_SPEED = 54;
 const BASE_CAR_RATE = 1750;
 const BASE_TRUCK_SPEED = 36;
@@ -52,8 +50,9 @@ export default class MainScene extends Phaser.Scene {
 
   private cars: Phaser.Physics.Arcade.Group | null = null;
   private ground: Phaser.GameObjects.Group | null = null;
+  private labels: Phaser.GameObjects.Layer | null = null;
   private player: Phaser.Physics.Arcade.Sprite | null = null
-  private vegetation: Phaser.GameObjects.Group | null = null;
+  private vegetation: Phaser.GameObjects.Layer | null = null;
 
   private addCarTimer: Phaser.Time.TimerEvent | null = null;
   
@@ -63,6 +62,7 @@ export default class MainScene extends Phaser.Scene {
   private leftLane = 0;
   private rightLane = 0;
 
+  private titleLabel: Phaser.GameObjects.Text | null = null;
   private scoreLabel: Phaser.GameObjects.Text | null = null;
   private mainMessage: Phaser.GameObjects.Text | null = null;
 
@@ -112,7 +112,7 @@ export default class MainScene extends Phaser.Scene {
 
     // Define cars and vegetation groups.
     this.cars = this.physics.add.group();
-    this.vegetation = this.add.group();
+    this.vegetation = this.add.layer();
 
     // Add controls.
     this.input.keyboard?.on('keydown-SPACE', this.onTap.bind(this));
@@ -120,7 +120,21 @@ export default class MainScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onTap.bind(this));
 
     // Add texts.
-    // TODO: Add title.
+    this.labels = this.add.layer();
+
+    this.titleLabel = this.add.text(
+      0.5 * this.game.canvas.width,
+      0.2 * this.game.canvas.height,
+      "Road Brawler"
+    );
+    this.titleLabel.setFontSize(36);
+    this.titleLabel.setColor('#fff');
+    this.titleLabel.setAlign('center');
+    this.titleLabel.setShadow(1, 1, '#000', 1);
+    this.titleLabel.setOrigin(0.5, 0.5);
+    this.titleLabel.setVisible(false);
+    this.labels.add(this.titleLabel)
+
     this.mainMessage = this.add.text(
       0.5 * this.game.canvas.width,
       0.8 * this.game.canvas.height,
@@ -132,6 +146,7 @@ export default class MainScene extends Phaser.Scene {
     this.mainMessage.setShadow(1, 1, '#000', 1);
     this.mainMessage.setOrigin(0.5, 0.5);
     this.mainMessage.setVisible(false);
+    this.labels.add(this.mainMessage)
 
     this.scoreLabel = this.add.text(
       this.game.canvas.width - 20,
@@ -144,6 +159,7 @@ export default class MainScene extends Phaser.Scene {
     this.scoreLabel.setShadow(1, 1, '#000', 1);
     this.scoreLabel.setOrigin(1, 0);
     this.scoreLabel.setVisible(false);
+    this.labels.add(this.scoreLabel)
 
     this.addVegetation();
 
@@ -208,6 +224,7 @@ export default class MainScene extends Phaser.Scene {
   showMainMenu() {
     this.gameStatus = GameStatus.MAIN_MENU;
 
+    this.titleLabel?.setVisible(true);
     this.mainMessage?.setText("Tap to start");
     this.mainMessage?.setVisible(true);
     this.updateScore(0);
@@ -222,6 +239,7 @@ export default class MainScene extends Phaser.Scene {
   startGame() {
     this.gameStatus = GameStatus.PLAYING;
 
+    this.titleLabel?.setVisible(false);
     this.mainMessage?.setVisible(false);
     this.scoreLabel?.setVisible(true);
 
@@ -278,32 +296,34 @@ export default class MainScene extends Phaser.Scene {
   }
 
   addVegetation() {
-    const itemsToAdd = Math.ceil(this.game.canvas.width / (2 * VEGETATION_SPACING)) * 2
-    const itemsSpacing = this.game.canvas.width / itemsToAdd
+    const itemsToAdd = Math.ceil(this.game.canvas.width / (2 * VEGETATION_SPACING)) * 2;
+    const itemsSpacing = this.game.canvas.width / itemsToAdd;
 
-    // RFE: These variables should defined at initialization.
-    const laneStart = this.game.canvas.width/2 - FLOOR_SIZE * 1.5
-    const laneEnd = this.game.canvas.width/2 + FLOOR_SIZE * 1.5
+    const laneStart = this.leftLane - FLOOR_SIZE;
+    const laneEnd = this.rightLane + FLOOR_SIZE
+
     for(let i=0; i<itemsToAdd; i++) {
-      // REQ: vegatation should be positioned outside the the lanes space.
-      let minX = i * itemsSpacing
-      let maxX = minX + itemsSpacing
+      // REQ: vegetation should be positioned outside the the lanes space.
+      let minX = i * itemsSpacing;
+      let maxX = minX + itemsSpacing;
       if(minX >= laneStart && minX <= laneEnd) {
-        minX = laneEnd
+        minX = laneEnd;
       }
       if(maxX >= laneStart && maxX <= laneEnd) {
-        maxX = laneStart
+        maxX = laneStart;
       }
 
-      const randomPositionX = randomFromInternal(minX, maxX)
-      const randomSprite = Math.floor(Math.random() * VEGETATION_COUNT)
+      const randomPositionX = randomFromInternal(minX, maxX);
+      const randomSprite = Math.floor(Math.random() * VEGETATION_COUNT);
 
-      this.vegetation?.create(
+      const sprite = this.add.sprite(
         randomPositionX,
         -VEGETATION_HEIGHT,
         'vegetation',
         randomSprite
-      );  
+      )
+      this.vegetation?.add(sprite);
+      this.vegetation?.sendToBack(sprite);
     }
 
 
