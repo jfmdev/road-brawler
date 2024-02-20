@@ -1,14 +1,28 @@
-import { borderRandomBooleanFactory, pickRandomItem } from "../misc/util";
+import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
+
+// TODO Roadmap
+// * New vegetation items should have a lower z-index than previous vegetation items, to avoid overlapping them and than labels.
+// * Vegetation should spawn from start, instead of waiting for game to start.
+// * Add Title (above the 'Tap to start' label).
+// * Add a sound when changing lane.
+// * Add sound for car crashes.
+// * Add sound when pressing play.
+// * Add engine sound reproduced whenever the car hasn't crashed.
+// * Improve crashing animation.
+// * Simplify the code on this file by moving logic to utility files.
+// * Improve speed/rate variables so they depend of a single speed variable.
+// * During 'create' should prepopulate the screen with vegetation.
+// * Allow to choose between 2 and 3 lanes.
 
 // Speeds (pixels per second) and rates (milliseconds).
-const CAR_MIN_SPEED = 54;
-const CAR_MAX_SPEED = CAR_MIN_SPEED * 4;
-const CAR_MIN_RATE = 1500;
-const CAR_MAX_RATE = CAR_MIN_RATE / 3;
-const TRUCK_MIN_SPEED = 18;
-const TRUCK_MAX_SPEED = TRUCK_MIN_SPEED * 4;
+// TODO: Speeds and rates should be a function of a single general speed variable.
+const BASE_CAR_SPEED = 54;
+const BASE_CAR_RATE = 1750;
+const BASE_TRUCK_SPEED = 36;
+const BASE_VEGETATION_RATE = 500;
 
 // Difficulty thresholds.
+const MAX_SPEED_MULTIPLIER = 4;
 const DIFFICULTY_MIN_SCORE = 5;
 const DIFFICULTY_MAX_SCORE = 50;
 
@@ -17,6 +31,12 @@ const FLOOR_SIZE = 16;
 const CAR_SIZE = 32;
 const CAR_BODY_WIDTH = 12;
 const CAR_BODY_HEIGHT = 18;
+const VEGETATION_WIDTH = 14;
+const VEGETATION_HEIGHT = 30;
+const VEGETATION_COUNT = 12;
+
+// Miscellaneous constants.
+const VEGETATION_SPACING = 250;
 
 enum GameStatus {
   MAIN_MENU,
@@ -25,7 +45,7 @@ enum GameStatus {
   GAME_OVER
 }
 
-const randomLane = borderRandomBooleanFactory();
+const randomLane = biasedRandomBooleanFactory();
 
 export default class MainScene extends Phaser.Scene {
   private gameStatus: GameStatus = GameStatus.MAIN_MENU;
@@ -33,13 +53,12 @@ export default class MainScene extends Phaser.Scene {
   private cars: Phaser.Physics.Arcade.Group | null = null;
   private ground: Phaser.GameObjects.Group | null = null;
   private player: Phaser.Physics.Arcade.Sprite | null = null
+  private vegetation: Phaser.GameObjects.Group | null = null;
 
   private addCarTimer: Phaser.Time.TimerEvent | null = null;
+  
   private score = 0;
-
-  private carsRate: number = CAR_MIN_RATE;
-  private carsSpeed: number = CAR_MIN_SPEED;
-  private truckSpeed: number = TRUCK_MIN_SPEED;
+  private speedMultiplier = 1;
 
   private leftLane = 0;
   private rightLane = 0;
@@ -58,16 +77,15 @@ export default class MainScene extends Phaser.Scene {
     this.load.spritesheet('car-orange', 'assets/sprites/car-orange.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
     this.load.spritesheet('car-yellow', 'assets/sprites/car-yellow.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
 
-    // Load ground.
+    // Load ground and vegetation.
     this.load.image('grass', 'assets/images/grass.jpg');
     this.load.image('soil', 'assets/images/soil.jpg');
+    this.load.spritesheet('vegetation', 'assets/sprites/vegetation.png', { frameWidth: VEGETATION_WIDTH, frameHeight: VEGETATION_HEIGHT });
 
     // Load road.
     this.load.image('road-center', 'assets/images/road-center.jpg');
     this.load.image('road-left', 'assets/images/road-left.jpg');
     this.load.image('road-right', 'assets/images/road-right.jpg');
-
-    // TODO: Load vegetation (trees and bushes).
 
     // TODO: Load sounds.
   }
@@ -92,8 +110,9 @@ export default class MainScene extends Phaser.Scene {
     playerBody.setAllowGravity(false);
     playerBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
 
-    // Define cars group
+    // Define cars and vegetation groups.
     this.cars = this.physics.add.group();
+    this.vegetation = this.add.group();
 
     // Add controls.
     this.input.keyboard?.on('keydown-SPACE', this.onTap.bind(this));
@@ -101,6 +120,7 @@ export default class MainScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onTap.bind(this));
 
     // Add texts.
+    // TODO: Add title.
     this.mainMessage = this.add.text(
       0.5 * this.game.canvas.width,
       0.8 * this.game.canvas.height,
@@ -124,6 +144,8 @@ export default class MainScene extends Phaser.Scene {
     this.scoreLabel.setShadow(1, 1, '#000', 1);
     this.scoreLabel.setOrigin(1, 0);
     this.scoreLabel.setVisible(false);
+
+    this.addVegetation();
 
     // Set initial status.
     this.showMainMenu();
@@ -161,12 +183,21 @@ export default class MainScene extends Phaser.Scene {
     }
 
     if(this.gameStatus !== GameStatus.GAME_OVER) {
-        // Move ground.
+      // Move ground.
       if(this.ground != null) {
         const tiles = this.ground.getChildren();
         for(let i=0; i<tiles.length; i++) {
           const tile = tiles[i] as Phaser.GameObjects.TileSprite;
-          tile.tilePositionY -= delta * this.truckSpeed / 1000;
+          tile.tilePositionY -= delta * (BASE_TRUCK_SPEED * this.speedMultiplier) / 1000;
+        }
+      }
+
+      // Move vegetation.
+      if(this.vegetation != null) {
+        const brushes = this.vegetation.getChildren();
+        for(let i=0; i<brushes.length; i++) {
+          const tile = brushes[i] as Phaser.GameObjects.Sprite;
+          tile.y += delta * (BASE_TRUCK_SPEED * this.speedMultiplier) / 1000;
         }
       }
     }
@@ -179,10 +210,13 @@ export default class MainScene extends Phaser.Scene {
 
     this.mainMessage?.setText("Tap to start");
     this.mainMessage?.setVisible(true);
+    this.updateScore(0);
     this.scoreLabel?.setVisible(false);
 
     this.player?.stop();
     this.player?.setFrame(0);
+
+    this.cars?.clear(true, true);
   }
 
   startGame() {
@@ -192,7 +226,9 @@ export default class MainScene extends Phaser.Scene {
     this.scoreLabel?.setVisible(true);
 
     this.updateScore(0);
-    this.setAddCarTimer();
+    this.initCarTimer();
+
+    // TODO: Play a engine sound (loop).
   }
 
   endGame(player: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile, car: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile) {
@@ -204,6 +240,10 @@ export default class MainScene extends Phaser.Scene {
 
     this.addCarTimer?.destroy();
 
+    // TODO: Stop engine sound.
+
+    // TODO: Play a crash sound.
+    // TODO: The animation should depend on the collision angle
     if(player instanceof Phaser.Physics.Arcade.Sprite) {
       player.play('rotate');
     }
@@ -216,32 +256,67 @@ export default class MainScene extends Phaser.Scene {
 
   addCar() {
     // Randomly choose a sprint and a lane.
-    const sprite = pickRandomItem(['car-red', 'car-orange', 'car-yellow']);
+    const sprite = randomItem<string>(['car-red', 'car-orange', 'car-yellow']);
     const useLeft = randomLane();
     
     // Instantiate car.
     const car = this.cars?.create(
       useLeft ? this.leftLane : this.rightLane,
       -CAR_SIZE/2,
-      sprite
+      sprite,
+      7
     ) as Phaser.GameObjects.Sprite;
-    car.setFrame(7);
     car.anims.create({ key: 'rotate', frames: this.anims.generateFrameNumbers(sprite, { start: 7, end: 0 }), frameRate: 10, repeat: -1 });
 
     const carBody = car.body as Phaser.Physics.Arcade.Body;
     carBody.setAllowGravity(false)
-    carBody.setVelocityY(this.carsSpeed);
+    carBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
     carBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
 
     // Restart timer.
-    this.setAddCarTimer();
-
-    return carBody;
+    this.initCarTimer();
   }
 
-  setAddCarTimer() {
+  addVegetation() {
+    const itemsToAdd = Math.ceil(this.game.canvas.width / (2 * VEGETATION_SPACING)) * 2
+    const itemsSpacing = this.game.canvas.width / itemsToAdd
+
+    // RFE: These variables should defined at initialization.
+    const laneStart = this.game.canvas.width/2 - FLOOR_SIZE * 1.5
+    const laneEnd = this.game.canvas.width/2 + FLOOR_SIZE * 1.5
+    for(let i=0; i<itemsToAdd; i++) {
+      // REQ: vegatation should be positioned outside the the lanes space.
+      let minX = i * itemsSpacing
+      let maxX = minX + itemsSpacing
+      if(minX >= laneStart && minX <= laneEnd) {
+        minX = laneEnd
+      }
+      if(maxX >= laneStart && maxX <= laneEnd) {
+        maxX = laneStart
+      }
+
+      const randomPositionX = randomFromInternal(minX, maxX)
+      const randomSprite = Math.floor(Math.random() * VEGETATION_COUNT)
+
+      this.vegetation?.create(
+        randomPositionX,
+        -VEGETATION_HEIGHT,
+        'vegetation',
+        randomSprite
+      );  
+    }
+
+
+    this.time.addEvent({
+      delay: (BASE_VEGETATION_RATE / this.speedMultiplier),
+      callback: this.addVegetation,
+      callbackScope: this
+    });
+  }
+
+  initCarTimer() {
     this.addCarTimer = this.time.addEvent({
-      delay: this.carsRate,
+      delay: (BASE_CAR_RATE / this.speedMultiplier),
       callback: this.addCar,
       callbackScope: this
     });
@@ -253,10 +328,12 @@ export default class MainScene extends Phaser.Scene {
     }
 
     if(this.gameStatus === GameStatus.PLAYING) {
+      // TODO: Play a dodge sound.
+
       if(this.player?.body?.velocity.x === 0) {
         // If not moving (on the X axis) then switch lane.
         const isLeft = this.player.x < this.game.canvas.width/2;
-        this.player.setVelocityX((isLeft ? 1 : -1) * this.truckSpeed * 4);
+        this.player.setVelocityX((isLeft ? 1 : -1) * (BASE_TRUCK_SPEED * 4 * this.speedMultiplier));
       } else {
         // If already moving then invert direction.
         this.player?.setVelocityX(-(this.player?.body?.velocity.x || 0));
@@ -272,22 +349,10 @@ export default class MainScene extends Phaser.Scene {
     this.score = newScore;
     this.scoreLabel?.setText(`Score: ${this.score}`);
 
-    if(this.score < DIFFICULTY_MIN_SCORE) {
-      // Minimum difficulty.
-      this.carsRate = CAR_MIN_RATE;
-      this.carsSpeed = CAR_MIN_SPEED;
-      this.truckSpeed = TRUCK_MIN_SPEED;
-    } else if(this.score < DIFFICULTY_MAX_SCORE) {
-      // Medium difficulty.
-      const alpha = (this.score - DIFFICULTY_MIN_SCORE) / (DIFFICULTY_MAX_SCORE - DIFFICULTY_MIN_SCORE);
-      this.carsRate = (CAR_MAX_RATE - CAR_MIN_RATE) * alpha + CAR_MIN_RATE;
-      this.carsSpeed = (CAR_MAX_SPEED - CAR_MIN_SPEED) * alpha + CAR_MIN_SPEED;
-      this.truckSpeed = (TRUCK_MAX_SPEED - TRUCK_MIN_SPEED) * alpha + TRUCK_MIN_SPEED;
-    } else {
-      // Maximum difficulty.
-      this.carsRate = CAR_MAX_RATE;
-      this.carsSpeed = CAR_MAX_SPEED;
-      this.truckSpeed = TRUCK_MAX_SPEED;
-    }
+    this.speedMultiplier = this.score < DIFFICULTY_MIN_SCORE 
+      ? 1 
+      : this.score < DIFFICULTY_MAX_SCORE 
+      ? (1 + (MAX_SPEED_MULTIPLIER - 1) * (this.score - DIFFICULTY_MIN_SCORE) / (DIFFICULTY_MAX_SCORE - DIFFICULTY_MIN_SCORE)) 
+      : MAX_SPEED_MULTIPLIER;
   }
 }

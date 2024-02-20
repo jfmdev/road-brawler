@@ -2,9 +2,9 @@
  * Creates a function that returns random boolean values, but whose probabilities changes depending of the previous value
  * in order to avoid long sequences of the same value.
  * 
- * @returns A funtion that returns biased random boolean values.
+ * @returns A function that returns biased random boolean values.
  */
-export function borderRandomBooleanFactory() {
+export function biasedRandomBooleanFactory() {
   let previous: boolean | null = null;
 
   return () => {
@@ -17,9 +17,20 @@ export function borderRandomBooleanFactory() {
 }
 
 /**
+ * Get a random number from an interval.
+ * 
+ * @param min The minimum number from the interval.
+ * @param max The maximum number from the interval.
+ * @returns A random number between 'min' (inclusive) and 'max' (exclusive).
+ */
+export const randomFromInternal = (min: number, max: number) => Math.random() * (max - min) + min;
+
+/**
  * Picks a random item from an array.
  * 
  * @param array An array of strings.
  * @returns A random item from the array.
  */
-export const pickRandomItem = (array: string[]) => array[Math.floor(Math.random() * array.length)];
+export function randomItem<Type> (array: Type[]) : Type {
+  return array[Math.floor(Math.random() * array.length)];
+}
