@@ -1,7 +1,6 @@
 import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
 
 // TODO Roadmap
-// * Vegetation should spawn from start, instead of waiting for game to start.
 // * Score should increase after the car is "passed", instead of when the car is removed from screen.
 // * Add a sound when changing lane.
 // * Add sound for car crashes.
@@ -9,8 +8,6 @@ import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../m
 // * Add engine sound reproduced whenever the car hasn't crashed.
 // * Improve crashing animation.
 // * Simplify the code on this file by moving logic to utility files.
-// * Improve speed/rate variables so they depend of a single speed variable.
-// * During 'create' should prepopulate the screen with vegetation.
 // * Allow to choose between 2 and 3 lanes.
 
 // Speeds (pixels per second) and rates (milliseconds).
@@ -161,6 +158,11 @@ export default class MainScene extends Phaser.Scene {
     this.scoreLabel.setVisible(false);
     this.labels.add(this.scoreLabel)
 
+    // Pre-propulate screen with vegetation.
+    const vegetationRows = Math.ceil((this.game.canvas.height / BASE_CAR_SPEED) * 1000 / BASE_VEGETATION_RATE);
+    for(let i=0; i<vegetationRows; i++) {
+      this.addVegetation(i * this.game.canvas.height / vegetationRows, true);
+    }
     this.addVegetation();
 
     // Set initial status.
@@ -295,7 +297,7 @@ export default class MainScene extends Phaser.Scene {
     this.initCarTimer();
   }
 
-  addVegetation() {
+  addVegetation(positionY = -VEGETATION_HEIGHT, omitTimer = false) {
     const itemsToAdd = Math.ceil(this.game.canvas.width / (2 * VEGETATION_SPACING)) * 2;
     const itemsSpacing = this.game.canvas.width / itemsToAdd;
 
@@ -318,7 +320,7 @@ export default class MainScene extends Phaser.Scene {
 
       const sprite = this.add.sprite(
         randomPositionX,
-        -VEGETATION_HEIGHT,
+        positionY,
         'vegetation',
         randomSprite
       )
@@ -326,12 +328,13 @@ export default class MainScene extends Phaser.Scene {
       this.vegetation?.sendToBack(sprite);
     }
 
-
-    this.time.addEvent({
-      delay: (BASE_VEGETATION_RATE / this.speedMultiplier),
-      callback: this.addVegetation,
-      callbackScope: this
-    });
+    if(!omitTimer) {
+      this.time.addEvent({
+        delay: (BASE_VEGETATION_RATE / this.speedMultiplier),
+        callback: this.addVegetation,
+        callbackScope: this
+      });  
+    }
   }
 
   initCarTimer() {
