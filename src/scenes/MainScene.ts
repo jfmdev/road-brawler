@@ -1,12 +1,11 @@
 import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
 
 // TODO Roadmap
-// * Score should increase after the car is "passed", instead of when the car is removed from screen.
+// * Improve crashing animation.
 // * Add a sound when changing lane.
 // * Add sound for car crashes.
 // * Add sound when pressing play.
 // * Add engine sound reproduced whenever the car hasn't crashed.
-// * Improve crashing animation.
 // * Simplify the code on this file by moving logic to utility files.
 // * Allow to choose between 2 and 3 lanes.
 
@@ -48,6 +47,7 @@ export default class MainScene extends Phaser.Scene {
   private cars: Phaser.Physics.Arcade.Group | null = null;
   private ground: Phaser.GameObjects.Group | null = null;
   private labels: Phaser.GameObjects.Layer | null = null;
+  private milestones: Phaser.Physics.Arcade.Group | null = null;
   private player: Phaser.Physics.Arcade.Sprite | null = null
   private vegetation: Phaser.GameObjects.Layer | null = null;
 
@@ -107,8 +107,9 @@ export default class MainScene extends Phaser.Scene {
     playerBody.setAllowGravity(false);
     playerBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
 
-    // Define cars and vegetation groups.
+    // Define groups and layer.
     this.cars = this.physics.add.group();
+    this.milestones = this.physics.add.group();
     this.vegetation = this.add.layer();
 
     // Add controls.
@@ -188,14 +189,16 @@ export default class MainScene extends Phaser.Scene {
         this.physics.overlap(this.player, this.cars, this.endGame.bind(this));
       }
 
+      // Check if score must be increased.
+      if(this.player && this.milestones) {
+        this.physics.overlap(this.player, this.milestones, this.milestoneReached.bind(this));
+      }
+
       // Remove cars when they are out of the screen.
       this.cars?.getChildren().forEach((car: Phaser.GameObjects.GameObject) => {
-        const towerBody = car.body as Phaser.Physics.Arcade.Body;
-        if (towerBody.y - towerBody.height > this.game.canvas.height) {
+        const carBody = car.body as Phaser.Physics.Arcade.Body;
+        if (carBody.y - carBody.height > this.game.canvas.height) {
           this.cars?.remove(car, true, true);
-
-          // Increase score.
-          this.updateScore(this.score + 1);
         }
       });
     }
@@ -259,10 +262,12 @@ export default class MainScene extends Phaser.Scene {
     this.mainMessage?.setVisible(true);
 
     this.addCarTimer?.destroy();
+    this.milestones?.clear(true);
 
     // TODO: Stop engine sound.
 
     // TODO: Play a crash sound.
+
     // TODO: The animation should depend on the collision angle
     if(player instanceof Phaser.Physics.Arcade.Sprite) {
       player.play('rotate');
@@ -292,6 +297,13 @@ export default class MainScene extends Phaser.Scene {
     carBody.setAllowGravity(false)
     carBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
     carBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
+
+    // Add an invisible rectanble as milestone.
+    const milestone = this.add.rectangle(this.game.canvas.width/2, -CAR_SIZE, this.game.canvas.width, 2);
+    this.milestones?.add(milestone);
+    const milestoneBody = milestone.body as Phaser.Physics.Arcade.Body;
+    milestoneBody.setAllowGravity(false)
+    milestoneBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
 
     // Restart timer.
     this.initCarTimer();
@@ -336,13 +348,22 @@ export default class MainScene extends Phaser.Scene {
       });  
     }
   }
-
+  
   initCarTimer() {
     this.addCarTimer = this.time.addEvent({
       delay: (BASE_CAR_RATE / this.speedMultiplier),
       callback: this.addCar,
       callbackScope: this
     });
+  }
+
+  milestoneReached(
+    _objectA: Phaser.Tilemaps.Tile | Phaser.Types.Physics.Arcade.GameObjectWithBody,
+    objectB: Phaser.Tilemaps.Tile | Phaser.Types.Physics.Arcade.GameObjectWithBody
+  ) {
+    const milestone = objectB as Phaser.GameObjects.Rectangle;
+    this.milestones?.remove(milestone, true, true);
+    this.updateScore(this.score + 1);
   }
 
   onTap() {
