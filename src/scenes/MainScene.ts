@@ -1,13 +1,5 @@
 import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
 
-// TODO Roadmap
-// * Add a sound when changing lane.
-// * Add sound for car crashes.
-// * Add sound when pressing play.
-// * Add engine sound reproduced whenever the car hasn't crashed.
-// * Simplify the code on this file by moving logic to utility files.
-// * Allow to choose between 2 and 3 lanes.
-
 // Speeds (pixels per second) and rates (milliseconds).
 const BASE_CAR_SPEED = 54;
 const BASE_CAR_RATE = 1750;
@@ -65,6 +57,11 @@ export default class MainScene extends Phaser.Scene {
   private scoreLabel: Phaser.GameObjects.Text | null = null;
   private statusLabel: Phaser.GameObjects.Text | null = null;
 
+  private crashSound: Phaser.Sound.BaseSound | null = null;
+  private engineSound: Phaser.Sound.BaseSound | null = null;
+  private hornSound: Phaser.Sound.BaseSound | null = null;
+  private whooshSound: Phaser.Sound.BaseSound | null = null;
+
   constructor() {
     super();
   }
@@ -86,7 +83,11 @@ export default class MainScene extends Phaser.Scene {
     this.load.image('road-left', 'assets/images/road-left.jpg');
     this.load.image('road-right', 'assets/images/road-right.jpg');
 
-    // TODO: Load sounds.
+    // Load sounds.
+    this.load.audio('crash', 'assets/sounds/metal-crash.wav');
+    this.load.audio('engine', 'assets/sounds/engine.wav');
+    this.load.audio('horn', 'assets/sounds/car-horn.wav');
+    this.load.audio('whoosh', 'assets/sounds/sword-whoosh.wav');
   }
 
   create() {
@@ -130,6 +131,12 @@ export default class MainScene extends Phaser.Scene {
     for(let i=0; i<vegetationRows; i++) {
       this.addVegetation(i * this.game.canvas.height / vegetationRows, true);
     }
+
+    // Add sounds.
+    this.crashSound = this.sound.add('crash');
+    this.engineSound = this.sound.add('engine');
+    this.hornSound = this.sound.add('horn');
+    this.whooshSound = this.sound.add('whoosh');
 
     // Set initial status.
     this.showMainMenu();
@@ -220,15 +227,13 @@ export default class MainScene extends Phaser.Scene {
     this.updateScore(0);
     this.initCarTimer();
 
-    // TODO: Play a engine sound (loop).
+    this.engineSound?.play({ loop: true })
   }
 
   endGame(_player: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile, car: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile) {
     this.gameStatus = GameStatus.FINISHING;
 
-    // TODO: Stop engine sound.
-
-    // TODO: Play a crash sound.
+    this.crashSound?.play();
 
     if(car instanceof Phaser.Physics.Arcade.Sprite) {
       const crashSpeed = (BASE_CRASH_SPEED * this.speedMultiplier)
@@ -249,6 +254,7 @@ export default class MainScene extends Phaser.Scene {
       delay: FINISHING_TIME,
       callback: () => {
         this.gameStatus = GameStatus.GAME_OVER;
+        this.engineSound?.stop();
 
         this.player?.stop();
         this.player?.setVelocity(0, 0);
@@ -377,11 +383,12 @@ export default class MainScene extends Phaser.Scene {
 
   onTap() {
     if(this.gameStatus === GameStatus.MAIN_MENU) {
+      this.hornSound?.play();
       this.startGame();
     }
 
     if(this.gameStatus === GameStatus.PLAYING) {
-      // TODO: Play a dodge sound.
+      this.whooshSound?.play();
 
       if(this.player?.body?.velocity.x === 0) {
         // If not moving (on the X axis) then switch lane.
