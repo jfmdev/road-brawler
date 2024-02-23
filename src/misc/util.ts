@@ -17,6 +17,11 @@ export function biasedRandomBooleanFactory() {
 }
 
 /**
+ * Type for a function that returns a number.
+ */
+export type NumberGetter = () => number;
+
+/**
  * Get a random number from an interval.
  * 
  * @param min The minimum number from the interval.

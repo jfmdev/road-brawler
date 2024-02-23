@@ -4,9 +4,11 @@ import {
   VEGETATION_WIDTH,
   VEGETATION_HEIGHT
 } from "./constants";
+import { NumberGetter } from "./util";
 
 export default class GroundController {
   private scene: Phaser.Scene;
+  private getSpeedMultiplier: NumberGetter;
 
   public mainGroup: Phaser.GameObjects.Group | null = null;
 
@@ -14,8 +16,9 @@ export default class GroundController {
   public lastLaneEnd = 0;
   public laneCenters: Array<number> = [];
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, getSpeedMultiplier: NumberGetter) {
     this.scene = scene;
+    this.getSpeedMultiplier = getSpeedMultiplier;
   }
 
   preload() {
@@ -50,11 +53,11 @@ export default class GroundController {
     this.lastLaneEnd = centerX + FLOOR_SIZE;
   }
 
-  update(delta: number, speedMultiplier: number) {
+  update(delta: number) {
     const tiles = this.mainGroup?.getChildren() ?? [];
     for(let i=0; i<tiles.length; i++) {
       const tile = tiles[i] as Phaser.GameObjects.TileSprite;
-      tile.tilePositionY -= delta * (BASE_TRUCK_SPEED * speedMultiplier) / 1000;
+      tile.tilePositionY -= delta * (BASE_TRUCK_SPEED * this.getSpeedMultiplier()) / 1000;
     }  
   }
 }

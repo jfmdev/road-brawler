@@ -3,25 +3,20 @@ import {
   BASE_CAR_RATE,
   BASE_CRASH_SPEED,
   BASE_TRUCK_SPEED,
-  BASE_VEGETATION_RATE,
   MAX_SPEED_MULTIPLIER,
   DIFFICULTY_MIN_SCORE,
   DIFFICULTY_MAX_SCORE,
   CAR_SIZE,
   CAR_BODY_WIDTH,
   CAR_BODY_HEIGHT,
-  VEGETATION_WIDTH,
-  VEGETATION_HEIGHT,
-  VEGETATION_COUNT,
-  VEGETATION_SPACING,
   FINISHING_TIME 
 } from "../misc/constants";
 import {
   biasedRandomBooleanFactory,
-  randomFromInternal,
   randomItem
 } from "../misc/util";
 import GroundController from "../misc/ground";
+import VegetationController from "../misc/vegetation";
 
 enum GameStatus {
   MAIN_MENU,
@@ -36,16 +31,15 @@ export default class MainScene extends Phaser.Scene {
   private gameStatus: GameStatus = GameStatus.MAIN_MENU;
 
   private ground: GroundController;
+  private vegetation: VegetationController;
 
   private cars: Phaser.Physics.Arcade.Group | null = null;
   private labels: Phaser.GameObjects.Layer | null = null;
   private milestones: Phaser.Physics.Arcade.Group | null = null;
   private player: Phaser.Physics.Arcade.Sprite | null = null
-  private vegetation: Phaser.GameObjects.Layer | null = null;
 
   private addCarTimer: Phaser.Time.TimerEvent | null = null;
-  private addVegetationTimer: Phaser.Time.TimerEvent | null = null;
-  
+
   private score = 0;
   private speedMultiplier = 1;
 
@@ -60,7 +54,8 @@ export default class MainScene extends Phaser.Scene {
 
   constructor() {
     super();
-    this.ground = new GroundController(this);
+    this.ground = new GroundController(this, this.getSpeedMultiplier.bind(this));
+    this.vegetation = new VegetationController(this, this.ground, this.getSpeedMultiplier.bind(this));
   }
 
   preload() {
@@ -71,7 +66,7 @@ export default class MainScene extends Phaser.Scene {
     this.load.spritesheet('car-yellow', 'assets/sprites/car-yellow.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
 
     // Load vegetation.
-    this.load.spritesheet('vegetation', 'assets/sprites/vegetation.png', { frameWidth: VEGETATION_WIDTH, frameHeight: VEGETATION_HEIGHT });
+    this.vegetation.preload();
 
     // Load ground and road.
     this.ground.preload()
@@ -94,8 +89,10 @@ export default class MainScene extends Phaser.Scene {
     playerBody.setAllowGravity(false);
     playerBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
 
+    // Add brushes and trees.
+    this.vegetation.create();
+
     // Define groups and layer.
-    this.vegetation = this.add.layer();
     this.cars = this.physics.add.group();
     this.milestones = this.physics.add.group();
 
@@ -109,12 +106,6 @@ export default class MainScene extends Phaser.Scene {
     this.titleLabel = this.addLabel(0.5 * this.game.canvas.width, 0.2 * this.game.canvas.height, "Road Brawler", 36);
     this.statusLabel = this.addLabel(0.5 * this.game.canvas.width, 0.8 * this.game.canvas.height, "", 24);
     this.scoreLabel = this.addLabel(this.game.canvas.width - 20, 10, "", 16, 1, 0);
-
-    // Pre-propulate screen with vegetation.
-    const vegetationRows = Math.ceil((this.game.canvas.height / BASE_CAR_SPEED) * 1000 / BASE_VEGETATION_RATE);
-    for(let i=0; i<vegetationRows; i++) {
-      this.addVegetation(i * this.game.canvas.height / vegetationRows, true);
-    }
 
     // Add sounds.
     this.crashSound = this.sound.add('crash');
@@ -162,16 +153,10 @@ export default class MainScene extends Phaser.Scene {
 
     if(this.gameStatus !== GameStatus.GAME_OVER) {
       // Move ground.
-      this.ground.update(delta, this.speedMultiplier);
+      this.ground.update(delta);
 
-      // Move vegetation.
-      if(this.vegetation != null) {
-        const brushes = this.vegetation.getChildren();
-        for(let i=0; i<brushes.length; i++) {
-          const tile = brushes[i] as Phaser.GameObjects.Sprite;
-          tile.y += delta * (BASE_TRUCK_SPEED * this.speedMultiplier) / 1000;
-        }
-      }
+      // Move brushes and trees.
+      this.vegetation.update(delta);
     }
   }
 
@@ -193,7 +178,7 @@ export default class MainScene extends Phaser.Scene {
 
     this.cars?.clear(true, true);
 
-    this.initVegetationTimer()
+    this.vegetation.initTimer()
   }
 
   startGame() {
@@ -242,7 +227,7 @@ export default class MainScene extends Phaser.Scene {
         this.statusLabel?.setText("Game over");
         this.statusLabel?.setVisible(true);
 
-        this.addVegetationTimer?.destroy();
+        this.vegetation.stopTimer();
       },
       callbackScope: this
     });
@@ -300,54 +285,14 @@ export default class MainScene extends Phaser.Scene {
     return label
   }
   
-  addVegetation(positionY = -VEGETATION_HEIGHT, omitTimer = false) {
-    const itemsToAdd = Math.ceil(this.game.canvas.width / (2 * VEGETATION_SPACING)) * 2;
-    const itemsSpacing = this.game.canvas.width / itemsToAdd;
-
-    const lanesEnd = this.ground.lastLaneEnd + VEGETATION_WIDTH;
-    const lanesStart = this.ground.firstLaneStart - VEGETATION_WIDTH;
-
-    for(let i=0; i<itemsToAdd; i++) {
-      // REQ: vegetation should be positioned outside the the lanes space.
-      let minX = i * itemsSpacing;
-      let maxX = minX + itemsSpacing;
-      if(minX >= lanesStart && minX <= lanesEnd) {
-        minX = lanesEnd;
-      }
-      if(maxX >= lanesStart && maxX <= lanesEnd) {
-        maxX = lanesStart;
-      }
-
-      const randomPositionX = randomFromInternal(minX, maxX);
-      const randomSprite = Math.floor(Math.random() * VEGETATION_COUNT);
-
-      const sprite = this.add.sprite(
-        randomPositionX,
-        positionY,
-        'vegetation',
-        randomSprite
-      )
-      this.vegetation?.add(sprite);
-      this.vegetation?.sendToBack(sprite);
-    }
-
-    if(!omitTimer) {
-      this.initVegetationTimer();
-    }
+  getSpeedMultiplier() {
+    return this.speedMultiplier;
   }
 
   initCarTimer() {
     this.addCarTimer = this.time.addEvent({
       delay: (BASE_CAR_RATE / this.speedMultiplier),
       callback: this.addCar,
-      callbackScope: this
-    });
-  }
-
-  initVegetationTimer() {
-    this.addVegetationTimer = this.time.addEvent({
-      delay: (BASE_VEGETATION_RATE / this.speedMultiplier),
-      callback: this.addVegetation,
       callbackScope: this
     });
   }

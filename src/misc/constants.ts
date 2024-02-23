@@ -21,4 +21,4 @@ export const VEGETATION_COUNT = 12;
 
 // Miscellaneous constants.
 export const VEGETATION_SPACING = 250;
-export const FINISHING_TIME = 3000;
+export const FINISHING_TIME = 2000;
