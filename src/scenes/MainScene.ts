@@ -1,7 +1,6 @@
 import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
 
 // TODO Roadmap
-// * Improve crashing animation (both cars should go diagonal, but player should have a negative desacceleration until stops).
 // * Add a sound when changing lane.
 // * Add sound for car crashes.
 // * Add sound when pressing play.
@@ -12,6 +11,7 @@ import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../m
 // Speeds (pixels per second) and rates (milliseconds).
 const BASE_CAR_SPEED = 54;
 const BASE_CAR_RATE = 1750;
+const BASE_CRASH_SPEED = 28;
 const BASE_TRUCK_SPEED = 36;
 const BASE_VEGETATION_RATE = 500;
 
@@ -31,6 +31,7 @@ const VEGETATION_COUNT = 12;
 
 // Miscellaneous constants.
 const VEGETATION_SPACING = 250;
+const FINISHING_TIME = 3000;
 
 enum GameStatus {
   MAIN_MENU,
@@ -67,7 +68,7 @@ export default class MainScene extends Phaser.Scene {
   constructor() {
     super();
   }
-  
+
   preload() {
     // Load cars.
     this.load.spritesheet('truck', 'assets/sprites/truck-blue.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
@@ -87,7 +88,7 @@ export default class MainScene extends Phaser.Scene {
 
     // TODO: Load sounds.
   }
-  
+
   create() {
     // Add soil and grass.
     this.ground = this.add.group();
@@ -109,9 +110,9 @@ export default class MainScene extends Phaser.Scene {
     playerBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
 
     // Define groups and layer.
+    this.vegetation = this.add.layer();
     this.cars = this.physics.add.group();
     this.milestones = this.physics.add.group();
-    this.vegetation = this.add.layer();
 
     // Add controls.
     this.input.keyboard?.on('keydown-SPACE', this.onTap.bind(this));
@@ -222,28 +223,44 @@ export default class MainScene extends Phaser.Scene {
     // TODO: Play a engine sound (loop).
   }
 
-  endGame(player: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile, car: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile) {
-    // TODO: Should temporarly set the status to FINISHING to reproduce the crash animation.
-    this.gameStatus = GameStatus.GAME_OVER;
-
-    this.statusLabel?.setText("Game over");
-    this.statusLabel?.setVisible(true);
-
-    this.addCarTimer?.destroy();
-    this.addVegetationTimer?.destroy();
-    this.milestones?.clear(true);
+  endGame(_player: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile, car: Phaser.GameObjects.GameObject | Phaser.Tilemaps.Tile) {
+    this.gameStatus = GameStatus.FINISHING;
 
     // TODO: Stop engine sound.
 
     // TODO: Play a crash sound.
 
-    // TODO: The animation should depend on the collision angle
-    if(player instanceof Phaser.Physics.Arcade.Sprite) {
-      player.play('rotate');
-    }
     if(car instanceof Phaser.Physics.Arcade.Sprite) {
+      const crashSpeed = (BASE_CRASH_SPEED * this.speedMultiplier)
+      const playerIsLeft = (this.player?.body?.position.x ?? 0) < (car.body?.position.x ?? 0);
+
+      this.player?.play('rotate');
+      this.player?.setVelocityX((playerIsLeft ? -1 : 1) * crashSpeed);
+      this.player?.setAccelerationX(crashSpeed/FINISHING_TIME);
+    
       car.play('rotate');
+      car.setVelocityX((playerIsLeft ? 1 : -1) * crashSpeed)
     }
+
+    this.addCarTimer?.destroy();
+    this.milestones?.clear(true);
+
+    this.time.addEvent({
+      delay: FINISHING_TIME,
+      callback: () => {
+        this.gameStatus = GameStatus.GAME_OVER;
+
+        this.player?.stop();
+        this.player?.setVelocity(0, 0);
+        this.player?.setAcceleration(0, 0);
+
+        this.statusLabel?.setText("Game over");
+        this.statusLabel?.setVisible(true);
+
+        this.addVegetationTimer?.destroy();
+      },
+      callbackScope: this
+    });
   }
 
   // --- Miscellaneous --- //
@@ -252,7 +269,7 @@ export default class MainScene extends Phaser.Scene {
     // Randomly choose a sprint and a lane.
     const sprite = randomItem<string>(['car-red', 'car-orange', 'car-yellow']);
     const useLeft = randomLane();
-    
+
     // Instantiate car.
     const car = this.cars?.create(
       useLeft ? this.leftLane : this.rightLane,
@@ -332,7 +349,7 @@ export default class MainScene extends Phaser.Scene {
       this.initVegetationTimer();
     }
   }
-  
+
   initCarTimer() {
     this.addCarTimer = this.time.addEvent({
       delay: (BASE_CAR_RATE / this.speedMultiplier),
