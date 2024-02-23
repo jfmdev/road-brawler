@@ -1,7 +1,7 @@
 import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
 
 // TODO Roadmap
-// * Improve crashing animation.
+// * Improve crashing animation (both cars should go diagonal, but player should have a negative desacceleration until stops).
 // * Add a sound when changing lane.
 // * Add sound for car crashes.
 // * Add sound when pressing play.
@@ -52,6 +52,7 @@ export default class MainScene extends Phaser.Scene {
   private vegetation: Phaser.GameObjects.Layer | null = null;
 
   private addCarTimer: Phaser.Time.TimerEvent | null = null;
+  private addVegetationTimer: Phaser.Time.TimerEvent | null = null;
   
   private score = 0;
   private speedMultiplier = 1;
@@ -61,7 +62,7 @@ export default class MainScene extends Phaser.Scene {
 
   private titleLabel: Phaser.GameObjects.Text | null = null;
   private scoreLabel: Phaser.GameObjects.Text | null = null;
-  private mainMessage: Phaser.GameObjects.Text | null = null;
+  private statusLabel: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super();
@@ -119,52 +120,15 @@ export default class MainScene extends Phaser.Scene {
 
     // Add texts.
     this.labels = this.add.layer();
-
-    this.titleLabel = this.add.text(
-      0.5 * this.game.canvas.width,
-      0.2 * this.game.canvas.height,
-      "Road Brawler"
-    );
-    this.titleLabel.setFontSize(36);
-    this.titleLabel.setColor('#fff');
-    this.titleLabel.setAlign('center');
-    this.titleLabel.setShadow(1, 1, '#000', 1);
-    this.titleLabel.setOrigin(0.5, 0.5);
-    this.titleLabel.setVisible(false);
-    this.labels.add(this.titleLabel)
-
-    this.mainMessage = this.add.text(
-      0.5 * this.game.canvas.width,
-      0.8 * this.game.canvas.height,
-      ""
-    );
-    this.mainMessage.setFontSize(24);
-    this.mainMessage.setColor('#fff');
-    this.mainMessage.setAlign('center');
-    this.mainMessage.setShadow(1, 1, '#000', 1);
-    this.mainMessage.setOrigin(0.5, 0.5);
-    this.mainMessage.setVisible(false);
-    this.labels.add(this.mainMessage)
-
-    this.scoreLabel = this.add.text(
-      this.game.canvas.width - 20,
-      10,
-      ""
-    );
-    this.scoreLabel.setFontSize(16);
-    this.scoreLabel.setColor('#fff');
-    this.scoreLabel.setAlign('center');
-    this.scoreLabel.setShadow(1, 1, '#000', 1);
-    this.scoreLabel.setOrigin(1, 0);
-    this.scoreLabel.setVisible(false);
-    this.labels.add(this.scoreLabel)
+    this.titleLabel = this.addLabel(0.5 * this.game.canvas.width, 0.2 * this.game.canvas.height, "Road Brawler", 36);
+    this.statusLabel = this.addLabel(0.5 * this.game.canvas.width, 0.8 * this.game.canvas.height, "", 24);
+    this.scoreLabel = this.addLabel(this.game.canvas.width - 20, 10, "", 16, 1, 0);
 
     // Pre-propulate screen with vegetation.
     const vegetationRows = Math.ceil((this.game.canvas.height / BASE_CAR_SPEED) * 1000 / BASE_VEGETATION_RATE);
     for(let i=0; i<vegetationRows; i++) {
       this.addVegetation(i * this.game.canvas.height / vegetationRows, true);
     }
-    this.addVegetation();
 
     // Set initial status.
     this.showMainMenu();
@@ -230,22 +194,26 @@ export default class MainScene extends Phaser.Scene {
     this.gameStatus = GameStatus.MAIN_MENU;
 
     this.titleLabel?.setVisible(true);
-    this.mainMessage?.setText("Tap to start");
-    this.mainMessage?.setVisible(true);
+    this.statusLabel?.setText("Tap to start");
+    this.statusLabel?.setVisible(true);
     this.updateScore(0);
     this.scoreLabel?.setVisible(false);
 
     this.player?.stop();
     this.player?.setFrame(0);
+    this.player?.setPosition(this.game.canvas.width / 2, this.game.canvas.height - CAR_SIZE);
+    this.player?.setVelocityX(0);
 
     this.cars?.clear(true, true);
+
+    this.initVegetationTimer()
   }
 
   startGame() {
     this.gameStatus = GameStatus.PLAYING;
 
     this.titleLabel?.setVisible(false);
-    this.mainMessage?.setVisible(false);
+    this.statusLabel?.setVisible(false);
     this.scoreLabel?.setVisible(true);
 
     this.updateScore(0);
@@ -258,10 +226,11 @@ export default class MainScene extends Phaser.Scene {
     // TODO: Should temporarly set the status to FINISHING to reproduce the crash animation.
     this.gameStatus = GameStatus.GAME_OVER;
 
-    this.mainMessage?.setText("Game over");
-    this.mainMessage?.setVisible(true);
+    this.statusLabel?.setText("Game over");
+    this.statusLabel?.setVisible(true);
 
     this.addCarTimer?.destroy();
+    this.addVegetationTimer?.destroy();
     this.milestones?.clear(true);
 
     // TODO: Stop engine sound.
@@ -309,6 +278,25 @@ export default class MainScene extends Phaser.Scene {
     this.initCarTimer();
   }
 
+  addLabel(
+    positionX: number,
+    positionY: number,
+    text: string,
+    fontSize: number,
+    originX = 0.5,
+    originY = 0.5
+  ): Phaser.GameObjects.Text {
+    const label = this.add.text(positionX, positionY, text);
+    label.setFontSize(fontSize);
+    label.setColor('#fff');
+    label.setAlign('center');
+    label.setShadow(1, 1, '#000', 1);
+    label.setOrigin(originX, originY);
+    label.setVisible(false);
+    this.labels?.add(label)
+    return label
+  }
+  
   addVegetation(positionY = -VEGETATION_HEIGHT, omitTimer = false) {
     const itemsToAdd = Math.ceil(this.game.canvas.width / (2 * VEGETATION_SPACING)) * 2;
     const itemsSpacing = this.game.canvas.width / itemsToAdd;
@@ -341,11 +329,7 @@ export default class MainScene extends Phaser.Scene {
     }
 
     if(!omitTimer) {
-      this.time.addEvent({
-        delay: (BASE_VEGETATION_RATE / this.speedMultiplier),
-        callback: this.addVegetation,
-        callbackScope: this
-      });  
+      this.initVegetationTimer();
     }
   }
   
@@ -353,6 +337,14 @@ export default class MainScene extends Phaser.Scene {
     this.addCarTimer = this.time.addEvent({
       delay: (BASE_CAR_RATE / this.speedMultiplier),
       callback: this.addCar,
+      callbackScope: this
+    });
+  }
+
+  initVegetationTimer() {
+    this.addVegetationTimer = this.time.addEvent({
+      delay: (BASE_VEGETATION_RATE / this.speedMultiplier),
+      callback: this.addVegetation,
       callbackScope: this
     });
   }
