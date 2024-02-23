@@ -1,29 +1,27 @@
-import { biasedRandomBooleanFactory, randomFromInternal, randomItem } from "../misc/util";
-
-// Speeds (pixels per second) and rates (milliseconds).
-const BASE_CAR_SPEED = 54;
-const BASE_CAR_RATE = 1750;
-const BASE_CRASH_SPEED = 28;
-const BASE_TRUCK_SPEED = 36;
-const BASE_VEGETATION_RATE = 500;
-
-// Difficulty thresholds.
-const MAX_SPEED_MULTIPLIER = 4;
-const DIFFICULTY_MIN_SCORE = 5;
-const DIFFICULTY_MAX_SCORE = 50;
-
-// Sprites sizes.
-const FLOOR_SIZE = 16;
-const CAR_SIZE = 32;
-const CAR_BODY_WIDTH = 12;
-const CAR_BODY_HEIGHT = 18;
-const VEGETATION_WIDTH = 14;
-const VEGETATION_HEIGHT = 30;
-const VEGETATION_COUNT = 12;
-
-// Miscellaneous constants.
-const VEGETATION_SPACING = 250;
-const FINISHING_TIME = 3000;
+import {
+  BASE_CAR_SPEED,
+  BASE_CAR_RATE,
+  BASE_CRASH_SPEED,
+  BASE_TRUCK_SPEED,
+  BASE_VEGETATION_RATE,
+  MAX_SPEED_MULTIPLIER,
+  DIFFICULTY_MIN_SCORE,
+  DIFFICULTY_MAX_SCORE,
+  CAR_SIZE,
+  CAR_BODY_WIDTH,
+  CAR_BODY_HEIGHT,
+  VEGETATION_WIDTH,
+  VEGETATION_HEIGHT,
+  VEGETATION_COUNT,
+  VEGETATION_SPACING,
+  FINISHING_TIME 
+} from "../misc/constants";
+import {
+  biasedRandomBooleanFactory,
+  randomFromInternal,
+  randomItem
+} from "../misc/util";
+import GroundController from "../misc/ground";
 
 enum GameStatus {
   MAIN_MENU,
@@ -37,8 +35,9 @@ const randomLane = biasedRandomBooleanFactory();
 export default class MainScene extends Phaser.Scene {
   private gameStatus: GameStatus = GameStatus.MAIN_MENU;
 
+  private ground: GroundController;
+
   private cars: Phaser.Physics.Arcade.Group | null = null;
-  private ground: Phaser.GameObjects.Group | null = null;
   private labels: Phaser.GameObjects.Layer | null = null;
   private milestones: Phaser.Physics.Arcade.Group | null = null;
   private player: Phaser.Physics.Arcade.Sprite | null = null
@@ -49,9 +48,6 @@ export default class MainScene extends Phaser.Scene {
   
   private score = 0;
   private speedMultiplier = 1;
-
-  private leftLane = 0;
-  private rightLane = 0;
 
   private titleLabel: Phaser.GameObjects.Text | null = null;
   private scoreLabel: Phaser.GameObjects.Text | null = null;
@@ -64,6 +60,7 @@ export default class MainScene extends Phaser.Scene {
 
   constructor() {
     super();
+    this.ground = new GroundController(this);
   }
 
   preload() {
@@ -73,15 +70,11 @@ export default class MainScene extends Phaser.Scene {
     this.load.spritesheet('car-orange', 'assets/sprites/car-orange.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
     this.load.spritesheet('car-yellow', 'assets/sprites/car-yellow.png', { frameWidth: CAR_SIZE, frameHeight: CAR_SIZE });
 
-    // Load ground and vegetation.
-    this.load.image('grass', 'assets/images/grass.jpg');
-    this.load.image('soil', 'assets/images/soil.jpg');
+    // Load vegetation.
     this.load.spritesheet('vegetation', 'assets/sprites/vegetation.png', { frameWidth: VEGETATION_WIDTH, frameHeight: VEGETATION_HEIGHT });
 
-    // Load road.
-    this.load.image('road-center', 'assets/images/road-center.jpg');
-    this.load.image('road-left', 'assets/images/road-left.jpg');
-    this.load.image('road-right', 'assets/images/road-right.jpg');
+    // Load ground and road.
+    this.ground.preload()
 
     // Load sounds.
     this.load.audio('crash', 'assets/sounds/metal-crash.wav');
@@ -91,17 +84,8 @@ export default class MainScene extends Phaser.Scene {
   }
 
   create() {
-    // Add soil and grass.
-    this.ground = this.add.group();
-    this.ground.add(this.add.tileSprite(0, 0, this.game.canvas.width, this.game.canvas.height, 'soil').setOrigin(0, 0));
-    this.ground.add(this.add.tileSprite(Math.floor(this.game.canvas.width/4), 0, Math.floor(this.game.canvas.width/2), this.game.canvas.height, 'grass').setOrigin(0, 0));
-
-    // Add road.
-    this.ground.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2) + FLOOR_SIZE - 2, 0, FLOOR_SIZE, this.game.canvas.height, 'road-right').setOrigin(0.5, 0));
-    this.ground.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2) - FLOOR_SIZE + 2, 0, FLOOR_SIZE, this.game.canvas.height, 'road-left').setOrigin(0.5, 0));
-    this.ground.add(this.add.tileSprite(Math.floor(this.game.canvas.width/2), 0, FLOOR_SIZE, this.game.canvas.height, 'road-center').setOrigin(0.5, 0));
-    this.leftLane = Math.floor(this.game.canvas.width/2) - FLOOR_SIZE/2;
-    this.rightLane = Math.floor(this.game.canvas.width/2) + FLOOR_SIZE/2;
+    // Add soil, grass and road.
+    this.ground.create();
 
     // Add player.
     this.player = this.physics.add.sprite(this.game.canvas.width / 2, this.game.canvas.height - CAR_SIZE, 'truck');
@@ -146,13 +130,14 @@ export default class MainScene extends Phaser.Scene {
     if(this.gameStatus === GameStatus.PLAYING) {
       // Stop player when it reaches the lane.
       if(this.player && this.player.body) {
-        if(this.player.body.velocity.x > 0 && this.player.x >= this.rightLane) {
+        // FIXME: This logic will need to be updated when we support more than 2 lanes.
+        if(this.player.body.velocity.x < 0 && this.player.x <= this.ground.laneCenters[0]) {
           this.player.setVelocityX(0);
-          this.player.x = this.rightLane;
+          this.player.x = this.ground.laneCenters[0];
         }
-        if(this.player.body.velocity.x < 0 && this.player.x <= this.leftLane) {
+        if(this.player.body.velocity.x > 0 && this.player.x >= this.ground.laneCenters[1]) {
           this.player.setVelocityX(0);
-          this.player.x = this.leftLane;
+          this.player.x = this.ground.laneCenters[1];
         }
       }
 
@@ -177,13 +162,7 @@ export default class MainScene extends Phaser.Scene {
 
     if(this.gameStatus !== GameStatus.GAME_OVER) {
       // Move ground.
-      if(this.ground != null) {
-        const tiles = this.ground.getChildren();
-        for(let i=0; i<tiles.length; i++) {
-          const tile = tiles[i] as Phaser.GameObjects.TileSprite;
-          tile.tilePositionY -= delta * (BASE_TRUCK_SPEED * this.speedMultiplier) / 1000;
-        }
-      }
+      this.ground.update(delta, this.speedMultiplier);
 
       // Move vegetation.
       if(this.vegetation != null) {
@@ -271,6 +250,7 @@ export default class MainScene extends Phaser.Scene {
 
   // --- Miscellaneous --- //
 
+  // FIXME: This function will add more than one care  when we support more than 2 lanes.
   addCar() {
     // Randomly choose a sprint and a lane.
     const sprite = randomItem<string>(['car-red', 'car-orange', 'car-yellow']);
@@ -278,7 +258,7 @@ export default class MainScene extends Phaser.Scene {
 
     // Instantiate car.
     const car = this.cars?.create(
-      useLeft ? this.leftLane : this.rightLane,
+      useLeft ? this.ground.laneCenters[0] : this.ground.laneCenters[1],
       -CAR_SIZE/2,
       sprite,
       7
@@ -324,18 +304,18 @@ export default class MainScene extends Phaser.Scene {
     const itemsToAdd = Math.ceil(this.game.canvas.width / (2 * VEGETATION_SPACING)) * 2;
     const itemsSpacing = this.game.canvas.width / itemsToAdd;
 
-    const laneStart = this.leftLane - FLOOR_SIZE;
-    const laneEnd = this.rightLane + FLOOR_SIZE
+    const lanesEnd = this.ground.lastLaneEnd + VEGETATION_WIDTH;
+    const lanesStart = this.ground.firstLaneStart - VEGETATION_WIDTH;
 
     for(let i=0; i<itemsToAdd; i++) {
       // REQ: vegetation should be positioned outside the the lanes space.
       let minX = i * itemsSpacing;
       let maxX = minX + itemsSpacing;
-      if(minX >= laneStart && minX <= laneEnd) {
-        minX = laneEnd;
+      if(minX >= lanesStart && minX <= lanesEnd) {
+        minX = lanesEnd;
       }
-      if(maxX >= laneStart && maxX <= laneEnd) {
-        maxX = laneStart;
+      if(maxX >= lanesStart && maxX <= lanesEnd) {
+        maxX = lanesStart;
       }
 
       const randomPositionX = randomFromInternal(minX, maxX);
@@ -390,6 +370,7 @@ export default class MainScene extends Phaser.Scene {
     if(this.gameStatus === GameStatus.PLAYING) {
       this.whooshSound?.play();
 
+      // FIXME: This logic will need to be updated when we support more than 2 lanes.
       if(this.player?.body?.velocity.x === 0) {
         // If not moving (on the X axis) then switch lane.
         const isLeft = this.player.x < this.game.canvas.width/2;
