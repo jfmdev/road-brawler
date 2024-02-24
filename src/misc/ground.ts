@@ -10,8 +10,9 @@ export default class GroundController {
   private scene: Phaser.Scene;
   private getSpeedMultiplier: NumberGetter;
 
-  public mainGroup: Phaser.GameObjects.Group | null = null;
+  public mainLayer: Phaser.GameObjects.Layer | null = null;
 
+  private laneSprites: Array<Phaser.GameObjects.TileSprite> = [];
   public firstLaneStart = 0;
   public lastLaneEnd = 0;
   public laneCenters: Array<number> = [];
@@ -36,25 +37,58 @@ export default class GroundController {
   create() {
     const canvasWidth = this.scene.game.canvas.width;
     const canvasHeight = this.scene.game.canvas.height;
-    const centerX = Math.floor(canvasWidth/2);
 
     // Add soil and grass.
-    this.mainGroup = this.scene.add.group();
-    this.mainGroup.add(this.scene.add.tileSprite(0, 0, canvasWidth, this.scene.game.canvas.height, 'soil').setOrigin(0, 0));
-    this.mainGroup.add(this.scene.add.tileSprite(Math.floor(canvasWidth/4), 0, Math.floor(canvasWidth/2), canvasHeight, 'grass').setOrigin(0, 0));
+    this.mainLayer = this.scene.add.layer();
+    this.mainLayer.add(this.scene.add.tileSprite(0, 0, canvasWidth, canvasHeight, 'soil').setOrigin(0, 0));
+    this.mainLayer.add(this.scene.add.tileSprite(Math.floor(canvasWidth/4), 0, Math.floor(canvasWidth/2), canvasHeight, 'grass').setOrigin(0, 0));
 
     // Add road.
-    this.mainGroup?.add(this.scene.add.tileSprite(centerX + FLOOR_SIZE - 2, 0, FLOOR_SIZE, canvasHeight, 'road-right').setOrigin(0.5, 0));
-    this.mainGroup?.add(this.scene.add.tileSprite(centerX - FLOOR_SIZE + 2, 0, FLOOR_SIZE, canvasHeight, 'road-left').setOrigin(0.5, 0));
-    this.mainGroup?.add(this.scene.add.tileSprite(centerX, 0, FLOOR_SIZE, canvasHeight, 'road-center').setOrigin(0.5, 0));
+    this.buildLanes()
+  }
 
-    this.laneCenters = [centerX - 0.75*FLOOR_SIZE + 1, centerX + 0.75*FLOOR_SIZE - 1];
-    this.firstLaneStart = centerX - 1.5*FLOOR_SIZE + 2;
-    this.lastLaneEnd = centerX + 1.5*FLOOR_SIZE - 2;
+  buildLanes(count = 2) {
+    const canvasWidth = this.scene.game.canvas.width;
+    const canvasHeight = this.scene.game.canvas.height;
+    const centerX = Math.floor(canvasWidth/2);
+
+    this.firstLaneStart = centerX - (count + 1)*FLOOR_SIZE/2; // + 2
+    this.lastLaneEnd = centerX + (count + 1)*FLOOR_SIZE/2; // - 2;
+
+    // Remove previous sprites.
+    this.laneSprites.forEach(sprite => sprite.destroy(true))
+
+    // Add new sprites.
+    this.laneSprites = [];
+    for(let i=0; i<=count; i++) {
+      let positionX = this.firstLaneStart + i*FLOOR_SIZE;
+      if(i === 0) {
+        positionX += 1;
+      } else if(i === count) {
+        positionX -= 1;
+      }
+
+      const spritesheet = i === 0 ? 'road-left' : i === count ? 'road-right' : 'road-center';
+      const sprite = this.scene.add.tileSprite(positionX, 0, FLOOR_SIZE, canvasHeight, spritesheet).setOrigin(0, 0);
+
+      this.mainLayer?.add(sprite);
+      this.laneSprites.push(sprite);
+    }
+
+    this.laneCenters = [];
+    const laneSpace = (this.lastLaneEnd - this.firstLaneStart)/(count+1);
+    for(let i=1; i<=count; i++) {
+      this.laneCenters.push(this.firstLaneStart + i*laneSpace);
+    }
+
+    // CAVEAT: This is required to avoid some overlapping issues between 'left' and 'right' sprites.
+    for(let i=1; i<count; i++) {
+      this.mainLayer?.bringToTop(this.laneSprites[i]);
+    }      
   }
 
   update(delta: number) {
-    const tiles = this.mainGroup?.getChildren() ?? [];
+    const tiles = this.mainLayer?.getChildren() ?? [];
     for(let i=0; i<tiles.length; i++) {
       const tile = tiles[i] as Phaser.GameObjects.TileSprite;
       tile.tilePositionY -= delta * (BASE_TRUCK_SPEED * this.getSpeedMultiplier()) / 1000;
