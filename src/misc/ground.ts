@@ -48,9 +48,9 @@ export default class GroundController {
     this.mainGroup?.add(this.scene.add.tileSprite(centerX - FLOOR_SIZE + 2, 0, FLOOR_SIZE, canvasHeight, 'road-left').setOrigin(0.5, 0));
     this.mainGroup?.add(this.scene.add.tileSprite(centerX, 0, FLOOR_SIZE, canvasHeight, 'road-center').setOrigin(0.5, 0));
 
-    this.laneCenters = [centerX - FLOOR_SIZE/2, centerX + FLOOR_SIZE/2];
-    this.firstLaneStart = centerX - FLOOR_SIZE;
-    this.lastLaneEnd = centerX + FLOOR_SIZE;
+    this.laneCenters = [centerX - 0.75*FLOOR_SIZE + 1, centerX + 0.75*FLOOR_SIZE - 1];
+    this.firstLaneStart = centerX - 1.5*FLOOR_SIZE + 2;
+    this.lastLaneEnd = centerX + 1.5*FLOOR_SIZE - 2;
   }
 
   update(delta: number) {

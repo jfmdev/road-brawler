@@ -56,8 +56,8 @@ export default class VegetationController {
     const itemsToAdd = Math.ceil(this.scene.game.canvas.width / (2 * VEGETATION_SPACING)) * 2;
     const itemsSpacing = this.scene.game.canvas.width / itemsToAdd;
 
-    const lanesEnd = this.ground.lastLaneEnd + VEGETATION_WIDTH;
-    const lanesStart = this.ground.firstLaneStart - VEGETATION_WIDTH;
+    const lanesEnd = this.ground.lastLaneEnd + VEGETATION_WIDTH/2;
+    const lanesStart = this.ground.firstLaneStart - VEGETATION_WIDTH/2;
 
     for(let i=0; i<itemsToAdd; i++) {
       // REQ: vegetation should be positioned outside the the lanes space.

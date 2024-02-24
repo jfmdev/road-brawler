@@ -54,8 +54,10 @@ export default class MainScene extends Phaser.Scene {
 
   constructor() {
     super();
-    this.ground = new GroundController(this, this.getSpeedMultiplier.bind(this));
-    this.vegetation = new VegetationController(this, this.ground, this.getSpeedMultiplier.bind(this));
+
+    const getSpeedMultiplier = () => this.speedMultiplier;
+    this.ground = new GroundController(this, getSpeedMultiplier);
+    this.vegetation = new VegetationController(this, this.ground, getSpeedMultiplier);
   }
 
   preload() {
@@ -119,20 +121,7 @@ export default class MainScene extends Phaser.Scene {
 
   update(_time: number, delta: number) {
     if(this.gameStatus === GameStatus.PLAYING) {
-      // Stop player when it reaches the lane.
-      if(this.player && this.player.body) {
-        // FIXME: This logic will need to be updated when we support more than 2 lanes.
-        if(this.player.body.velocity.x < 0 && this.player.x <= this.ground.laneCenters[0]) {
-          this.player.setVelocityX(0);
-          this.player.x = this.ground.laneCenters[0];
-        }
-        if(this.player.body.velocity.x > 0 && this.player.x >= this.ground.laneCenters[1]) {
-          this.player.setVelocityX(0);
-          this.player.x = this.ground.laneCenters[1];
-        }
-      }
-
-      // Check for collisions.
+      // Check for cars collisions.
       if(this.player && this.cars) {
         this.physics.overlap(this.player, this.cars, this.endGame.bind(this));
       }
@@ -255,7 +244,7 @@ export default class MainScene extends Phaser.Scene {
     carBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
     carBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
 
-    // Add an invisible rectanble as milestone.
+    // Add an invisible rectangle as milestone.
     const milestone = this.add.rectangle(this.game.canvas.width/2, -CAR_SIZE, this.game.canvas.width, 2);
     this.milestones?.add(milestone);
     const milestoneBody = milestone.body as Phaser.Physics.Arcade.Body;
@@ -283,10 +272,6 @@ export default class MainScene extends Phaser.Scene {
     label.setVisible(false);
     this.labels?.add(label)
     return label
-  }
-  
-  getSpeedMultiplier() {
-    return this.speedMultiplier;
   }
 
   initCarTimer() {
@@ -316,13 +301,17 @@ export default class MainScene extends Phaser.Scene {
       this.whooshSound?.play();
 
       // FIXME: This logic will need to be updated when we support more than 2 lanes.
-      if(this.player?.body?.velocity.x === 0) {
-        // If not moving (on the X axis) then switch lane.
+      if(this.player !== null) {
         const isLeft = this.player.x < this.game.canvas.width/2;
-        this.player.setVelocityX((isLeft ? 1 : -1) * (BASE_TRUCK_SPEED * 4 * this.speedMultiplier));
-      } else {
-        // If already moving then invert direction.
-        this.player?.setVelocityX(-(this.player?.body?.velocity.x || 0));
+        const newPositionX = this.ground.laneCenters[isLeft ? 1 : 0];
+        const speed = BASE_TRUCK_SPEED * 4 * this.speedMultiplier;
+        const duration = 1000 * Math.abs(this.player.x - newPositionX) / speed;
+        this.tweens.add({
+          targets: this.player,
+          x: newPositionX,
+          flipY: true,
+          duration
+        });
       }
     }
 
