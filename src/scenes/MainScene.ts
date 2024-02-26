@@ -13,6 +13,7 @@ import {
 } from "../misc/constants";
 import {
   biasedRandomBooleanFactory,
+  Direction,
   randomItem
 } from "../misc/util";
 import GroundController from "../misc/ground";
@@ -99,9 +100,9 @@ export default class MainScene extends Phaser.Scene {
     this.milestones = this.physics.add.group();
 
     // Add controls.
-    this.input.keyboard?.on('keydown-SPACE', this.onTap.bind(this));
-    this.input.keyboard?.on('keydown-ENTER', this.onTap.bind(this));
-    this.input.on('pointerdown', this.onTap.bind(this));
+    this.input.keyboard?.on('keydown', this.onUserInput.bind(this));
+    this.input.keyboard?.on('keydown', this.onUserInput.bind(this));
+    this.input.on('pointerdown', this.onUserInput.bind(this));
 
     // Add texts.
     this.labels = this.add.layer();
@@ -274,6 +275,29 @@ export default class MainScene extends Phaser.Scene {
     return label
   }
 
+  getInputDirection(inputEvent: KeyboardEvent | Phaser.Input.Pointer) {
+    if(inputEvent instanceof KeyboardEvent) {
+      if(inputEvent.code === 'Space' || inputEvent.code === 'Enter') {
+        const isLeft = (this.player?.x ?? 0) < this.game.canvas.width/2;
+        return isLeft ? Direction.RIGHT : Direction.LEFT;
+      }
+
+      if(inputEvent.code === 'ArrowLeft' || inputEvent.code === 'Numpad4') {
+        return Direction.LEFT;
+      }
+
+      if(inputEvent.code === 'ArrowRight' || inputEvent.code === 'Numpad6') {
+        return Direction.RIGHT;
+      }
+    }
+
+    if(inputEvent instanceof Phaser.Input.Pointer) {
+      return inputEvent.x > this.game.canvas.width/2 ? Direction.RIGHT : Direction.LEFT;
+    }
+
+    return Direction.NONE
+  }
+
   initCarTimer() {
     this.addCarTimer = this.time.addEvent({
       delay: (BASE_CAR_RATE / this.speedMultiplier),
@@ -291,7 +315,7 @@ export default class MainScene extends Phaser.Scene {
     this.updateScore(this.score + 1);
   }
 
-  onTap() {
+  onUserInput(inputEvent: KeyboardEvent | Phaser.Input.Pointer) {
     if(this.gameStatus === GameStatus.MAIN_MENU) {
       this.hornSound?.play();
       this.startGame();
@@ -300,10 +324,9 @@ export default class MainScene extends Phaser.Scene {
     if(this.gameStatus === GameStatus.PLAYING) {
       this.whooshSound?.play();
 
-      // FIXME: This logic will need to be updated when we support more than 2 lanes.
       if(this.player !== null) {
-        const isLeft = this.player.x < this.game.canvas.width/2;
-        const newPositionX = this.ground.laneCenters[isLeft ? 1 : 0];
+        const nextLane = this.ground.nextLane(this.player.x, this.getInputDirection(inputEvent));
+        const newPositionX = this.ground.laneCenters[nextLane];
         const speed = BASE_TRUCK_SPEED * 4 * this.speedMultiplier;
         const duration = 1000 * Math.abs(this.player.x - newPositionX) / speed;
         this.tweens.add({

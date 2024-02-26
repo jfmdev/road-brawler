@@ -4,7 +4,7 @@ import {
   VEGETATION_WIDTH,
   VEGETATION_HEIGHT
 } from "./constants";
-import { NumberGetter } from "./util";
+import { Direction, NumberGetter } from "./util";
 
 export default class GroundController {
   private scene: Phaser.Scene;
@@ -93,5 +93,26 @@ export default class GroundController {
       const tile = tiles[i] as Phaser.GameObjects.TileSprite;
       tile.tilePositionY -= delta * (BASE_TRUCK_SPEED * this.getSpeedMultiplier()) / 1000;
     }  
+  }
+
+  // --- Utilities --- //
+
+  closestLane(positionX: number) {
+    const closest = this.laneCenters.reduce<number>(
+      (bestCenter, center) => bestCenter < 0 || Math.abs(center - positionX) < Math.abs(bestCenter - positionX)
+      ? center 
+      : bestCenter
+    , -1);
+    
+    return this.laneCenters.indexOf(closest);
+  }
+
+  nextLane(positionX: number, direction: Direction) {
+    const currLane = this.closestLane(positionX);
+    if(direction === Direction.NONE || (direction === Direction.LEFT && currLane === 0) || (direction === Direction.RIGHT && currLane === (this.laneCenters.length - 1))) {
+      return currLane;
+    } else {
+      return direction === Direction.LEFT ? currLane - 1 : currLane + 1;
+    }
   }
 }

@@ -17,6 +17,15 @@ export function biasedRandomBooleanFactory() {
 }
 
 /**
+ * Enumeration utility for movement directions.
+ */
+export enum Direction {
+  LEFT,
+  NONE,
+  RIGHT
+}
+
+/**
  * Type for a function that returns a number.
  */
 export type NumberGetter = () => number;
