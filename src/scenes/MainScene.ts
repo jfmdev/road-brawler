@@ -4,6 +4,7 @@ import {
   BASE_CRASH_SPEED,
   BASE_TRUCK_SPEED,
   MAX_SPEED_MULTIPLIER,
+  MULTIPLE_CARS_THRESHOLD,
   DIFFICULTY_MIN_SCORE,
   DIFFICULTY_MAX_SCORE,
   CAR_SIZE,
@@ -12,9 +13,9 @@ import {
   FINISHING_TIME 
 } from "../misc/constants";
 import {
-  biasedRandomBooleanFactory,
   Direction,
-  randomItem
+  randomItem,
+  randomItemsBiasedFactory
 } from "../misc/util";
 import GroundController from "../misc/ground";
 import VegetationController from "../misc/vegetation";
@@ -26,7 +27,7 @@ enum GameStatus {
   GAME_OVER
 }
 
-const randomLane = biasedRandomBooleanFactory();
+const randomItemsBiased = randomItemsBiasedFactory<number>();
 
 export default class MainScene extends Phaser.Scene {
   private gameStatus: GameStatus = GameStatus.MAIN_MENU;
@@ -43,6 +44,7 @@ export default class MainScene extends Phaser.Scene {
 
   private score = 0;
   private speedMultiplier = 1;
+  private lanesCount = 3;
 
   private titleLabel: Phaser.GameObjects.Text | null = null;
   private scoreLabel: Phaser.GameObjects.Text | null = null;
@@ -225,32 +227,36 @@ export default class MainScene extends Phaser.Scene {
 
   // --- Miscellaneous --- //
 
-  // FIXME: This function will add more than one care  when we support more than 2 lanes.
   addCar() {
     // Randomly choose a sprint and a lane.
-    const sprite = randomItem<string>(['car-red', 'car-orange', 'car-yellow']);
-    const useLeft = randomLane();
+    const carCount = this.lanesCount > 2 && this.score >= MULTIPLE_CARS_THRESHOLD ? this.lanesCount - 1 : 1;
+    const laneIndexes = randomItemsBiased(Array.from(Array(this.lanesCount).keys()), carCount);
 
     // Instantiate car.
-    const car = this.cars?.create(
-      useLeft ? this.ground.laneCenters[0] : this.ground.laneCenters[1],
-      -CAR_SIZE/2,
-      sprite,
-      7
-    ) as Phaser.GameObjects.Sprite;
-    car.anims.create({ key: 'rotate', frames: this.anims.generateFrameNumbers(sprite, { start: 7, end: 0 }), frameRate: 10, repeat: -1 });
+    for(let i=0; i<carCount; i++) {
+      const laneIndex = laneIndexes[i];
+      const sprite = randomItem<string>(['car-red', 'car-orange', 'car-yellow']);
 
-    const carBody = car.body as Phaser.Physics.Arcade.Body;
-    carBody.setAllowGravity(false)
-    carBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
-    carBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
+      const car = this.cars?.create(
+        this.ground.laneCenters[laneIndex],
+        -CAR_SIZE/2,
+        sprite,
+        7
+      ) as Phaser.GameObjects.Sprite;
+      car.anims.create({ key: 'rotate', frames: this.anims.generateFrameNumbers(sprite, { start: 7, end: 0 }), frameRate: 10, repeat: -1 });
 
-    // Add an invisible rectangle as milestone.
-    const milestone = this.add.rectangle(this.game.canvas.width/2, -CAR_SIZE, this.game.canvas.width, 2);
-    this.milestones?.add(milestone);
-    const milestoneBody = milestone.body as Phaser.Physics.Arcade.Body;
-    milestoneBody.setAllowGravity(false)
-    milestoneBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
+      const carBody = car.body as Phaser.Physics.Arcade.Body;
+      carBody.setAllowGravity(false)
+      carBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
+      carBody.setSize(CAR_BODY_WIDTH, CAR_BODY_HEIGHT);
+
+      // Add an invisible rectangle as milestone.
+      const milestone = this.add.rectangle(this.game.canvas.width/2, -CAR_SIZE, this.game.canvas.width, 2);
+      this.milestones?.add(milestone);
+      const milestoneBody = milestone.body as Phaser.Physics.Arcade.Body;
+      milestoneBody.setAllowGravity(false)
+      milestoneBody.setVelocityY((BASE_CAR_SPEED * this.speedMultiplier));
+    }
 
     // Restart timer.
     this.initCarTimer();

@@ -47,7 +47,7 @@ export default class GroundController {
     this.buildLanes()
   }
 
-  buildLanes(count = 2) {
+  buildLanes(count = 3) {
     const canvasWidth = this.scene.game.canvas.width;
     const canvasHeight = this.scene.game.canvas.height;
     const centerX = Math.floor(canvasWidth/2);

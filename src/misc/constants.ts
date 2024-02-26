@@ -6,9 +6,10 @@ export const BASE_TRUCK_SPEED = 36;
 export const BASE_VEGETATION_RATE = 500;
 
 // Difficulty thresholds.
-export const MAX_SPEED_MULTIPLIER = 4;
 export const DIFFICULTY_MIN_SCORE = 5;
 export const DIFFICULTY_MAX_SCORE = 50;
+export const MAX_SPEED_MULTIPLIER = 3.5;
+export const MULTIPLE_CARS_THRESHOLD = 10;
 
 // Sprites sizes.
 export const FLOOR_SIZE = 16;
