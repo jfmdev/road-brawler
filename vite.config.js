@@ -18,7 +18,7 @@ export default defineConfig({
         name: "Road Brawler",
         description: "A simple racing game inspired by the classic Road Fighter game",
         orientation: "any",
-        theme_color: "00ff00",
+        theme_color: "#00ff00",
         icons: [
           {
             src: "misc/favicon.png",

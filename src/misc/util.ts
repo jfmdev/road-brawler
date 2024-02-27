@@ -54,7 +54,6 @@ export function randomItemsBiasedFactory<Type>() {
 
   return (list: Type[], quantity: number): Type[] => {
     let result = randomItems(list, quantity);
-console.log(list, quantity, result);
 
     // If current result is same than previous, then try again.
     if(result.every(item => previous.indexOf(item) >= 0)) {

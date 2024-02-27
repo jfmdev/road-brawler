@@ -280,7 +280,13 @@ export default class MainScene extends Phaser.Scene {
     originY = 0.5
   ): Phaser.GameObjects.Text {
     const label = this.add.text(positionX, positionY, text);
-    const sizeMultiplier = this.game.canvas.width < 300 ? 0.8 : 1;
+    const sizeMultiplier = this.game.canvas.width > 300
+      ? 1 
+      : this.game.canvas.width > 200 
+      ? 0.8 
+      : this.game.canvas.width > 100 
+      ? 0.4 
+      : 0.2;
     label.setFontSize(sizeMultiplier * fontSize);
     label.setColor('#fff');
     label.setAlign('center');
