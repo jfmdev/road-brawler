@@ -2,6 +2,10 @@
 
 A simple racing game inspired by the classic _Road Fighter_ game.
 
+[Play the game here](https://jfmdev.github.io/road-brawler/)
+
+![screenshot](./public/misc/screenshot-wide-2.jpg)
+
 ## Getting Started
 
 The project was created using the [vite-phaser-ts](https://github.com/iwantantra/vite-phaser-ts) template, which provides the following scripts:
