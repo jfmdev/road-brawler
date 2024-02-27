@@ -44,11 +44,12 @@ export default class MainScene extends Phaser.Scene {
 
   private score = 0;
   private speedMultiplier = 1;
-  private lanesCount = 3;
 
   private titleLabel: Phaser.GameObjects.Text | null = null;
   private scoreLabel: Phaser.GameObjects.Text | null = null;
   private statusLabel: Phaser.GameObjects.Text | null = null;
+  private twoLanesLabel: Phaser.GameObjects.Text | null = null;
+  private threeLanesLabel: Phaser.GameObjects.Text | null = null;
 
   private crashSound: Phaser.Sound.BaseSound | null = null;
   private engineSound: Phaser.Sound.BaseSound | null = null;
@@ -109,7 +110,9 @@ export default class MainScene extends Phaser.Scene {
     // Add texts.
     this.labels = this.add.layer();
     this.titleLabel = this.addLabel(0.5 * this.game.canvas.width, 0.2 * this.game.canvas.height, "Road Brawler", 36);
-    this.statusLabel = this.addLabel(0.5 * this.game.canvas.width, 0.8 * this.game.canvas.height, "", 24);
+    this.statusLabel = this.addLabel(0.5 * this.game.canvas.width, 0.65 * this.game.canvas.height, "", 18);
+    this.twoLanesLabel = this.addLabel(0.3 * this.game.canvas.width, 0.8 * this.game.canvas.height, "", 14);
+    this.threeLanesLabel = this.addLabel(0.7 * this.game.canvas.width, 0.8 * this.game.canvas.height, "", 14);
     this.scoreLabel = this.addLabel(this.game.canvas.width - 20, 10, "", 16, 1, 0);
 
     // Add sounds.
@@ -158,8 +161,12 @@ export default class MainScene extends Phaser.Scene {
     this.gameStatus = GameStatus.MAIN_MENU;
 
     this.titleLabel?.setVisible(true);
-    this.statusLabel?.setText("Tap to start");
+    this.statusLabel?.setText("Select difficulty\nto start");
     this.statusLabel?.setVisible(true);
+    this.threeLanesLabel?.setText("Hard\n(three lanes)");
+    this.threeLanesLabel?.setVisible(true);
+    this.twoLanesLabel?.setText("Easy\n(two lanes)");
+    this.twoLanesLabel?.setVisible(true);
     this.updateScore(0);
     this.scoreLabel?.setVisible(false);
 
@@ -179,6 +186,8 @@ export default class MainScene extends Phaser.Scene {
     this.titleLabel?.setVisible(false);
     this.statusLabel?.setVisible(false);
     this.scoreLabel?.setVisible(true);
+    this.threeLanesLabel?.setVisible(false);
+    this.twoLanesLabel?.setVisible(false);
 
     this.updateScore(0);
     this.initCarTimer();
@@ -229,8 +238,8 @@ export default class MainScene extends Phaser.Scene {
 
   addCar() {
     // Randomly choose a sprint and a lane.
-    const carCount = this.lanesCount > 2 && this.score >= MULTIPLE_CARS_THRESHOLD ? this.lanesCount - 1 : 1;
-    const laneIndexes = randomItemsBiased(Array.from(Array(this.lanesCount).keys()), carCount);
+    const carCount = this.ground.lanesCount() > 2 && this.score >= MULTIPLE_CARS_THRESHOLD ? this.ground.lanesCount() - 1 : 1;
+    const laneIndexes = randomItemsBiased(Array.from(Array(this.ground.lanesCount()).keys()), carCount);
 
     // Instantiate car.
     for(let i=0; i<carCount; i++) {
@@ -323,6 +332,11 @@ export default class MainScene extends Phaser.Scene {
 
   onUserInput(inputEvent: KeyboardEvent | Phaser.Input.Pointer) {
     if(this.gameStatus === GameStatus.MAIN_MENU) {
+      const newLaneCount = this.getInputDirection(inputEvent) === Direction.RIGHT ? 3 : 2;
+      if(newLaneCount !== this.ground.lanesCount()) {
+        this.ground.buildLanes(newLaneCount);
+      }
+
       this.hornSound?.play();
       this.startGame();
     }
